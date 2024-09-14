@@ -220,6 +220,7 @@ def run_inference(
     # expose some params for easy tweaking
     num_trunk_recycles: int = 3,
     num_diffn_timesteps: int = 2,
+    num_diffn_samples: int = 5,
     seed: int | None = None,
     device: torch.device | None = None,
 ) -> list[Path]:
@@ -275,6 +276,7 @@ def run_inference(
         feature_context,
         output_dir=output_dir,
         num_trunk_recycles=num_trunk_recycles,
+        num_diffn_samples=num_diffn_samples,
         num_diffn_timesteps=num_diffn_timesteps,
         seed=seed,
         device=device,
@@ -306,6 +308,7 @@ def run_folding_on_context(
     output_dir: Path,
     # expose some params for easy tweaking
     num_trunk_recycles: int = 3,
+    num_diffn_samples: int = 5,
     num_diffn_timesteps: int = 200,
     seed: int | None = None,
     device: torch.device | None = None,
@@ -476,7 +479,6 @@ def run_folding_on_context(
             atom_token_indices=atom_token_indices,
         )
 
-    num_diffn_samples = 5  # Fixed at export time
     inference_noise_schedule = InferenceNoiseSchedule(
         s_max=DiffusionConfig.S_tmax,
         s_min=4e-4,
