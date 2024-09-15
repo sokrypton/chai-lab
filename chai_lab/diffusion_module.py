@@ -1,4 +1,19 @@
-def forward(self, token_single_initial_repr, token_pair_initial_repr, token_single_trunk_repr, token_pair_trunk_repr, atom_single_input_feats, atom_block_pair_input_feats, atom_single_mask, atom_block_pair_mask, token_single_mask, block_indices_h, block_indices_w, atom_noised_coords, noise_sigma, atom_token_indices):
+def forward(self,
+            token_single_initial_repr,
+            token_pair_initial_repr,
+            token_single_trunk_repr,
+            token_pair_trunk_repr,
+            atom_single_input_feats,
+            atom_block_pair_input_feats,
+            atom_single_mask,
+            atom_block_pair_mask,
+            token_single_mask,
+            block_indices_h,
+            block_indices_w,
+            atom_noised_coords,
+            noise_sigma,
+            atom_token_indices,
+            num_diffn_samples=5):
     arg343_1, arg344_1, arg345_1, arg346_1, arg347_1, arg348_1, arg349_1, arg350_1, arg351_1, arg352_1, arg353_1, arg354_1, arg355_1, arg356_1, = fx_pytree.tree_flatten_spec(([], {'token_single_initial_repr':token_single_initial_repr, 'token_pair_initial_repr':token_pair_initial_repr, 'token_single_trunk_repr':token_single_trunk_repr, 'token_pair_trunk_repr':token_pair_trunk_repr, 'atom_single_input_feats':atom_single_input_feats, 'atom_block_pair_input_feats':atom_block_pair_input_feats, 'atom_single_mask':atom_single_mask, 'atom_block_pair_mask':atom_block_pair_mask, 'token_single_mask':token_single_mask, 'block_indices_h':block_indices_h, 'block_indices_w':block_indices_w, 'atom_noised_coords':atom_noised_coords, 'noise_sigma':noise_sigma, 'atom_token_indices':atom_token_indices}), self._in_spec)
     diffusion_conditioning_token_pair_proj_0_weight = getattr(self.diffusion_conditioning.token_pair_proj, "0").weight
     diffusion_conditioning_token_pair_proj_0_bias = getattr(self.diffusion_conditioning.token_pair_proj, "0").bias
