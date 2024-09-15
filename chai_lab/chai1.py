@@ -82,6 +82,7 @@ from chai_lab.utils.plot import plot_msa
 from chai_lab.utils.tensor_utils import move_data_to_device, set_seed, und_self
 from chai_lab.utils.typing import Float, typecheck
 
+from chai_lab.main.diffusion_module import forward as diffusion_module_forward
 
 class UnsupportedInputError(RuntimeError):
     pass
@@ -462,7 +463,8 @@ def run_folding_on_context(
             atom_pos, "(b s) ... -> b s ...", s=s
         ).contiguous()
         noise_sigma = repeat(sigma, " -> b s", b=batch_size, s=s)
-        return diffusion_module.forward(
+        return diffusion_module_forward(
+            diffusion_module,
             token_single_initial_repr=token_single_structure_input.float(),
             token_pair_initial_repr=token_pair_structure_input_feats.float(),
             token_single_trunk_repr=token_single_trunk_repr.float(),
@@ -477,6 +479,7 @@ def run_folding_on_context(
             atom_noised_coords=atom_noised_coords.float(),
             noise_sigma=noise_sigma.float(),
             atom_token_indices=atom_token_indices,
+            num_diffn_samples=num_diffn_samples,
         )
 
     inference_noise_schedule = InferenceNoiseSchedule(
