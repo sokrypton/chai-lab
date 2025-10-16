@@ -222,11 +222,15 @@ def new_context_to_cif_atoms(
                 # enumerate residues from 1 in output.
                 seq_id=int(context.token_residue_index[token_index].item()) + 1,
                 atom_id=atom_id,
-                x=x,
-                y=y,
-                z=z,
+                x=round(x, 3),
+                y=round(y, 3),
+                z=round(z, 3),
                 het=is_ligand,
-                biso=(None if plddts is None else plddts[atom_index].item()),
+                biso=(
+                    None
+                    if plddts is None
+                    else round(plddts[atom_index].item(), 2)
+                ),
                 occupancy=1.00,
             )
         )
