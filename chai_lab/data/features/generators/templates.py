@@ -26,13 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class TemplateMaskGenerator(FeatureGenerator):
-    def __init__(self):
+    def __init__(self, allow_inter_chain: bool = False): 
         super().__init__(
             ty=FeatureType.TEMPLATES,
             encoding_ty=EncodingType.IDENTITY,
             can_mask=False,
             num_classes=2,
         )
+        self.allow_inter_chain = allow_inter_chain 
 
     def get_input_kwargs_from_batch(self, batch: dict[str, Any]) -> dict:
         return dict(
@@ -49,30 +50,31 @@ class TemplateMaskGenerator(FeatureGenerator):
         template_pseudo_beta_mask: Bool[Tensor, "batch templ tokens"],
         asym_ids: Int[Tensor, "batch tokens"],
     ) -> Tensor:
-        same_asym = rearrange(asym_ids, "b t -> b 1 t 1 1") == rearrange(
-            asym_ids, "b t -> b 1 1 t 1"
-        )
         # Line 1: backbone frame mask
-        # (b t n n)
         bij_backbone = rearrange(
             template_backbone_frame_mask, "b t n -> b t n 1 1"
         ) * rearrange(template_backbone_frame_mask, "b t n -> b t 1 n 1")
 
         # Line 2: backbone pseudo beta mask
-        # (b t n n)
         bij_pseudo_beta = rearrange(
             template_pseudo_beta_mask, "b t n -> b t n 1 1"
         ) * rearrange(template_pseudo_beta_mask, "b t n -> b t 1 n 1")
 
         mask_feat = torch.cat([bij_backbone, bij_pseudo_beta], dim=-1).float()
 
-        return self.make_feature(mask_feat.float() * same_asym.float())
+        if self.allow_inter_chain:
+            return self.make_feature(mask_feat.float())
+        else:
+            same_asym = rearrange(asym_ids, "b t -> b 1 t 1 1") == rearrange(
+                asym_ids, "b t -> b 1 1 t 1"
+            )
+            return self.make_feature(mask_feat.float() * same_asym.float())
 
 
 class TemplateUnitVectorGenerator(FeatureGenerator):
     """Generates feature for template unit vector"""
 
-    def __init__(self):
+    def __init__(self, allow_inter_chain: bool = False): 
         super().__init__(
             ty=FeatureType.TEMPLATES,
             encoding_ty=EncodingType.IDENTITY,
@@ -80,6 +82,7 @@ class TemplateUnitVectorGenerator(FeatureGenerator):
             num_classes=3,
             mult=1,
         )
+        self.allow_inter_chain = allow_inter_chain 
 
     def get_input_kwargs_from_batch(self, batch: dict[str, Any]) -> dict:
         return dict(
@@ -93,13 +96,16 @@ class TemplateUnitVectorGenerator(FeatureGenerator):
         template_unit_vector: Float[Tensor, "batch templ tokens tokens 3"],
         asym_ids: Int[Tensor, "batch tokens"],
     ) -> Tensor:
-        same_asym = rearrange(asym_ids, "b t -> b 1 t 1 1") == rearrange(
-            asym_ids, "b t -> b 1 1 t 1"
-        )
-        same_asym = same_asym.to(template_unit_vector.dtype)
-        # mask out pairs with different asyms
-        template_unit_vector = template_unit_vector * same_asym
-        return self.make_feature(template_unit_vector)
+        # ← ADD CONDITIONAL LOGIC
+        if self.allow_inter_chain:
+            return self.make_feature(template_unit_vector)
+        else:
+            same_asym = rearrange(asym_ids, "b t -> b 1 t 1 1") == rearrange(
+                asym_ids, "b t -> b 1 1 t 1"
+            )
+            same_asym = same_asym.to(template_unit_vector.dtype)
+            template_unit_vector = template_unit_vector * same_asym
+            return self.make_feature(template_unit_vector)
 
 
 class TemplateResTypeGenerator(FeatureGenerator):
@@ -136,6 +142,7 @@ class TemplateDistogramGenerator(FeatureGenerator):
         min_dist_bin: float = 3.25,
         max_dist_bin: float = 50.75,
         n_dist_bin: int = 38,
+        allow_inter_chain: bool = False,
     ):
         super().__init__(
             ty=FeatureType.TEMPLATES,
@@ -145,6 +152,7 @@ class TemplateDistogramGenerator(FeatureGenerator):
             mult=1,
         )
         self.dist_bins = torch.linspace(min_dist_bin, max_dist_bin, n_dist_bin)[1:]
+        self.allow_inter_chain = allow_inter_chain  # ← STORE FLAG
 
     def get_input_kwargs_from_batch(self, batch: dict[str, Any]) -> dict:
         return dict(
@@ -159,8 +167,11 @@ class TemplateDistogramGenerator(FeatureGenerator):
         asym_ids: Int[Tensor, "batch tokens"],
     ) -> Tensor:
         discretized = torch.searchsorted(self.dist_bins, template_distances)
-        same_asym = rearrange(asym_ids, "b t -> b 1 t 1") == rearrange(
-            asym_ids, "b t -> b 1 1 t"
-        )
-        discretized = torch.masked_fill(discretized, ~same_asym, self.mask_value)
+        
+        if not self.allow_inter_chain:
+            same_asym = rearrange(asym_ids, "b t -> b 1 t 1") == rearrange(
+                asym_ids, "b t -> b 1 1 t"
+            )
+            discretized = torch.masked_fill(discretized, ~same_asym, self.mask_value)
+        
         return self.make_feature(data=discretized.unsqueeze(-1))
