@@ -173,7 +173,7 @@ def get_heavy_atoms(residue: gemmi.Residue) -> dict[str, gemmi.Atom]:
         atom for atom in residue.first_conformer() if atom.element.name != "H"
     ]
 
-    atom_names = {atom.name.strip() for atom in heavy_atoms}
+    atom_names = {atom.name for atom in heavy_atoms}
 
     return {name: _select_among_altlocs(residue, name) for name in atom_names}
 
