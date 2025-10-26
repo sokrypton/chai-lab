@@ -35,24 +35,10 @@ residue_atoms = {
     "PRO": ["C", "CA", "CB", "CG", "CD", "N", "O"],
     "SER": ["C", "CA", "CB", "N", "O", "OG"],
     "THR": ["C", "CA", "CB", "CG2", "N", "O", "OG1"],
-    "TRP": [
-        "C",
-        "CA",
-        "CB",
-        "CG",
-        "CD1",
-        "CD2",
-        "CE2",
-        "CE3",
-        "CZ2",
-        "CZ3",
-        "CH2",
-        "N",
-        "NE1",
-        "O",
-    ],
+    "TRP": ["C", "CA", "CB", "CG", "CD1", "CD2", "CE2", "CE3", "CZ2", "CZ3", "CH2", "N", "NE1", "O"],
     "TYR": ["C", "CA", "CB", "CG", "CD1", "CD2", "CE1", "CE2", "CZ", "N", "O", "OH"],
     "VAL": ["C", "CA", "CB", "CG1", "CG2", "N", "O"],
+    "UNK": ["C", "CA", "CB", "CG", "N", "O"],
 }
 
 # nucleic acid atoms from rosettafold-all-atoms
