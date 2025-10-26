@@ -639,10 +639,7 @@ def atom_names_to_atom37_indices(
 
     precomputed_idces = utils.atom_37_atom_indices()
 
-    if residue_name == "UNK":
-        retval = torch.arange(len(atom_names), dtype=torch.int)
-
-    elif residue_name in standard_residue_pdb_codes:
+    if residue_name in standard_residue_pdb_codes:
         idx = [precomputed_idces[(residue_name, atom_name)] for atom_name in atom_names]
         retval = torch.tensor(idx, dtype=torch.int)
     else:
