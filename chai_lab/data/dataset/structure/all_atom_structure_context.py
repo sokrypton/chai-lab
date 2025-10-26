@@ -379,12 +379,37 @@ class AllAtomStructureContext:
         token_ref_atom_index = torch.cat(
             [x.token_ref_atom_index + count for x, count in zip(contexts, atom_offsets)]
         )
+        '''
         token_backbone_frame_index = torch.cat(
             [
                 x.token_backbone_frame_index + count
                 for x, count in zip(contexts, token_offsets)
             ]
         )
+        '''
+        # --- BEGIN FIX ---
+        # Correctly offset token_backbone_frame_index using atom_offsets,
+        # not token_offsets, and respect the mask.
+        all_bb_indices = []
+        for sc, atom_offset in zip(contexts, atom_offsets):
+            bb_mask = sc.token_backbone_frame_mask
+            bb_indices = sc.token_backbone_frame_index
+
+            if atom_offset > 0:
+                # Add the atom_offset, but only where the mask is True.
+                # This correctly handles proteins, ligands, and padding.
+                offset_indices = torch.where(
+                    bb_mask.bool().unsqueeze(-1),
+                    bb_indices + atom_offset,
+                    torch.zeros_like(bb_indices)
+                )
+                all_bb_indices.append(offset_indices)
+            else:
+                # No offset for the first chain
+                all_bb_indices.append(bb_indices)
+        
+        token_backbone_frame_index = torch.cat(all_bb_indices, dim=0)
+        # --- END FIX ---
 
         n_tokens = sum(x.num_tokens for x in contexts)
         token_index = torch.arange(n_tokens, dtype=torch.int)
