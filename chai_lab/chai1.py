@@ -99,10 +99,11 @@ from chai_lab.data.io.cif_utils import _CHAIN_VOCAB, get_chain_letter, save_to_c
 from chai_lab.data.parsing.restraints import parse_pairwise_table
 from chai_lab.data.parsing.structure.entity_type import EntityType
 from chai_lab.model.diffusion_schedules import InferenceNoiseSchedule
+from chai_lab.model.distogram_head import DistogramHead
 from chai_lab.model.utils import center_random_augmentation
 from chai_lab.ranking.frames import get_frames_and_mask
 from chai_lab.ranking.rank import SampleRanking, get_scores, rank
-from chai_lab.utils.paths import chai1_component
+from chai_lab.utils.paths import chai1_component, repo_root
 from chai_lab.utils.plot import plot_msa
 from chai_lab.utils.tensor_utils import move_data_to_device, set_seed, und_self
 from chai_lab.utils.typing import Float, typecheck
@@ -149,6 +150,26 @@ def load_exported(comp_key: str, device: torch.device) -> ModuleWrapper:
 
 
 _component_cache: dict[str, ModuleWrapper] = {}
+
+_DISTOGRAM_HEAD_PATH = repo_root / "chai_lab" / "model" / "distogram_head.pt"
+_distogram_head_cache: DistogramHead | None = None
+
+
+def _get_distogram_head(device: torch.device) -> DistogramHead | None:
+    """Load and cache the distogram head, returning None if weights are absent."""
+    global _distogram_head_cache
+    if _distogram_head_cache is None:
+        if not _DISTOGRAM_HEAD_PATH.exists():
+            logging.warning(
+                f"Distogram head weights not found at {_DISTOGRAM_HEAD_PATH}; "
+                "skipping distogram computation."
+            )
+            return None
+        _distogram_head_cache = DistogramHead.load(
+            _DISTOGRAM_HEAD_PATH, torch.device("cpu")
+        )
+    _distogram_head_cache.to(device)
+    return _distogram_head_cache
 
 
 @contextmanager
@@ -300,6 +321,11 @@ class StructureCandidates:
     pde: Float[Tensor, "candidate num_tokens num_tokens"]
     # Predicted local distance difference test (pLDDT)
     plddt: Float[Tensor, "candidate num_tokens"]
+    # Predicted inter-residue distance distribution from trunk pair representation.
+    # Shape: [num_tokens, num_tokens, n_dist_bins] for a single trunk sample, or
+    # [num_trunk_samples, num_tokens, num_tokens, n_dist_bins] after concat.
+    # None if distogram head weights are unavailable.
+    distogram: Tensor | None = None
 
     def __post_init__(self):
         assert len(self.cif_paths) == len(self.ranking_data) == self.pae.shape[0]
@@ -315,12 +341,19 @@ class StructureCandidates:
             pae=self.pae[idx],
             pde=self.pde[idx],
             plddt=self.plddt[idx],
+            distogram=self.distogram,
         )
 
     @classmethod
     def concat(
         cls, candidates: Sequence["StructureCandidates"]
     ) -> "StructureCandidates":
+        distograms = [c.distogram for c in candidates if c.distogram is not None]
+        if distograms:
+            # Stack per-trunk distograms: [n_trunks, n_tokens, n_tokens, n_bins]
+            distogram = torch.stack(distograms)
+        else:
+            distogram = None
         return cls(
             cif_paths=list(
                 itertools.chain.from_iterable([c.cif_paths for c in candidates])
@@ -332,6 +365,7 @@ class StructureCandidates:
             pae=torch.cat([c.pae for c in candidates]),
             pde=torch.cat([c.pde for c in candidates]),
             plddt=torch.cat([c.plddt for c in candidates]),
+            distogram=distogram,
         )
 
 
@@ -780,6 +814,28 @@ def run_folding_on_context(
     torch.cuda.empty_cache()
 
     ##
+    ## Compute distogram from trunk pair representation
+    ##
+
+    distogram_probs: Tensor | None = None
+    distogram_head = _get_distogram_head(device)
+    if distogram_head is not None:
+        with torch.no_grad():
+            pair = token_pair_trunk_repr.to(device).float()
+            logits = distogram_head.compute_disto_logits(pair)
+            # Symmetrize: [1, N_padded, N_padded, n_bins]
+            logits = (logits + logits.transpose(1, 2)) / 2
+            token_mask_1d = token_single_mask.squeeze(0)
+            # Crop to valid tokens: [n_tokens, n_tokens, n_bins]
+            distogram_probs = (
+                logits.squeeze(0)[token_mask_1d][:, token_mask_1d]
+                .softmax(dim=-1)
+                .cpu()
+            )
+        distogram_head.to("cpu")
+        torch.cuda.empty_cache()
+
+    ##
     ## Denoise the trunk representation by passing it through the diffusion module
     ##
 
@@ -1049,6 +1105,13 @@ def run_folding_on_context(
 
         np.savez(scores_out_path, **get_scores(ranking_outputs))
 
+    # Save distogram once per trunk run (it does not vary across diffusion samples)
+    if distogram_probs is not None:
+        np.savez(
+            output_dir / "distogram.npz",
+            distogram=distogram_probs.numpy(),
+        )
+
     return StructureCandidates(
         cif_paths=cif_paths,
         ranking_data=ranking_data,
@@ -1056,4 +1119,5 @@ def run_folding_on_context(
         pae=pae_scores,
         pde=pde_scores,
         plddt=plddt_scores,
+        distogram=distogram_probs,
     )

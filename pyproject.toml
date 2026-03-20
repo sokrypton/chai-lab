@@ -68,6 +68,9 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 # should use packages from sdist section
+artifacts = [
+    "chai_lab/model/distogram_head.pt",
+]
 
 [project.scripts]
 chai-lab = "chai_lab.main:cli"
